@@ -1,0 +1,321 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Upload PDF to Google Drive</title>
+  <style>
+    body, html {
+      height: 100%;
+      margin: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .upload-button {
+      position: relative;
+      border-radius: 12px;
+      background-color: #4CAF50;
+      color: white;
+      border: none;
+      padding: 10px 20px;
+      text-align: center;
+      text-decoration: none;
+      display: inline-block;
+      font-size: 16px;
+      margin: 4px 2px;
+      cursor: pointer;
+      overflow: hidden;
+      transition: opacity 0.3s ease;
+    }
+    .upload-button.disabled {
+      opacity: 0.5;
+      pointer-events: none;
+    }
+    .upload-button .spinner {
+      position: absolute;
+      top: 50%;
+      left: 50%;
+      width: 20px;
+      height: 20px;
+      margin-top: -13px; /* Half the height */
+      margin-left: -15px; /* Half the width */
+      border: 4px solid rgba(0, 0, 0, 0.1);
+      border-radius: 50%;
+      border-left-color: white;
+      animation: spin 1s ease infinite;
+      opacity: 0;
+      transition: opacity 0.2s ease;
+    }
+    .upload-button .text {
+      transition: opacity 0.2s ease;
+    }
+    .file-list {
+      margin-top: 20px;
+    }
+    .file-item {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      margin-bottom: 10px;
+      background-color: #e0f7fa;
+      border-radius: 12px;
+      padding: 10px;
+      font-size: 14px;
+      transition: transform 0.3s ease, opacity 0.3s ease;
+    }
+    .file-item:hover:not(.removing) {
+      transform: scale(1.01);
+    }
+    .file-name {
+      margin-right: 10px;
+      flex-grow: 1;
+    }
+    .button-container {
+      display: flex;
+      gap: 10px;
+      opacity: 0;
+      transition: opacity 0.3s ease;
+    }
+    .file-item:hover:not(.removing) .button-container {
+      opacity: 1;
+    }
+    .icon-button {
+      background-color: transparent;
+      border: none;
+      cursor: pointer;
+      font-size: 16px;
+      color: gray;
+      transition: color 0.3s ease;
+    }
+    .icon-button.download-button {
+      color: gray;
+    }
+    .icon-button.delete-button {
+      color: gray;
+    }
+    .icon-button.delete-button:hover {
+      color: red;
+    }
+    .file-item.removing {
+      opacity: 0;
+      transition: opacity 0.5s ease;
+    }
+    .file-item.shrinking {
+      height: 0;
+      padding: 0;
+      margin-bottom: 0;
+      transition: height 0.5s ease, padding 0.5s ease, margin-bottom 0.5s ease;
+    }
+    @keyframes spin {
+      0% {
+        transform: rotate(0deg);
+      }
+      100% {
+        transform: rotate(360deg);
+      }
+    }
+  </style>
+</head>
+<body>
+  <h1>Upload PDF to Google Drive</h1>
+  <form id="uploadForm">
+    <label for="studentEmail">Student Email:</label>
+    <input type="email" id="studentEmail" name="studentEmail" required>
+    <br><br>
+    <input type="file" id="file" name="file" accept="application/pdf" style="display: none;" onchange="handleFileChange()">
+    <button type="button" id="uploadButton" class="upload-button" onclick="document.getElementById('file').click()">
+      <span class="text">Upload</span>
+      <div class="spinner" id="spinner"></div>
+    </button>
+  </form>
+  <div class="file-list" id="fileList"></div>
+  <script>
+    const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
+    let fileUploaded = false;
+    const UPLOAD_WEBHOOK_URL = 'YOUR_UPLOAD_WEBHOOK_URL'; // Replace with your Zapier webhook URL
+    const DELETE_WEBHOOK_URL = 'YOUR_DELETE_WEBHOOK_URL'; // Replace with your Zapier webhook URL
+
+    function getQueryParameter(name) {
+      const urlParams = new URLSearchParams(window.location.search);
+      return urlParams.get(name);
+    }
+
+    function customizeButton() {
+      const buttonTitle = getQueryParameter('button-title') || 'Upload';
+      document.querySelector('.upload-button .text').innerText = buttonTitle;
+    }
+
+    function showSpinner() {
+      document.querySelector('.upload-button .text').style.opacity = '0';
+      document.getElementById('spinner').style.opacity = '1';
+    }
+
+    function hideSpinner() {
+      document.getElementById('spinner').style.opacity = '0';
+      setTimeout(function() {
+        document.querySelector('.upload-button .text').style.opacity = '1';
+      }, 700); // 0.4 second delay + 0.3 seconds for the spinner fade-out transition
+    }
+
+    function disableUploadButton() {
+      const uploadButton = document.getElementById('uploadButton');
+      uploadButton.classList.add('disabled');
+    }
+
+    function enableUploadButton() {
+      const uploadButton = document.getElementById('uploadButton');
+      uploadButton.classList.remove('disabled');
+    }
+
+    function handleFileChange() {
+      const fileInput = document.getElementById('file');
+      if (fileInput.files.length > 0) {
+        disableUploadButton();
+        uploadFileToDrive();
+      }
+    }
+
+    function uploadFileToDrive() {
+      var studentEmail = document.getElementById('studentEmail').value;
+      var fileInput = document.getElementById('file');
+      var file = fileInput.files[0];
+
+      if (!studentEmail || !file) {
+        alert('Please provide both student email and a file.');
+        enableUploadButton();
+        fileInput.value = ''; // Reset the file input
+        return;
+      }
+
+      if (file.size > MAX_FILE_SIZE) {
+        alert('File size exceeds the maximum limit of 100MB.');
+        enableUploadButton();
+        fileInput.value = ''; // Reset the file input
+        return;
+      }
+
+      var reader = new FileReader();
+      reader.onload = function(event) {
+        var base64Data = event.target.result.split(',')[1];
+        var mimeType = file.type;
+        var fileName = file.name;
+
+        showSpinner();
+        fetch(UPLOAD_WEBHOOK_URL, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            studentEmail: studentEmail,
+            fileBase64: base64Data,
+            mimeType: mimeType,
+            fileName: fileName
+          }),
+        })
+        .then(response => response.json())
+        .then(response => {
+          console.log("File uploaded successfully: " + response.url);
+          addFileToList(response);
+          fileInput.value = ''; // Reset the file input
+          fileUploaded = true;
+          hideSpinner();
+        })
+        .catch(error => {
+          console.error('Error:', error);
+          enableUploadButton();
+          hideSpinner();
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+
+    function addFileToList(file) {
+      var fileList = document.getElementById('fileList');
+      var fileItem = document.createElement('div');
+      fileItem.className = 'file-item';
+      fileItem.innerHTML = `
+        <span class="file-name">${file.name}</span>
+        <div class="button-container">
+          <button class="icon-button download-button" onclick="downloadFile('${file.url}')"><i class="fa-solid fa-file-arrow-down"></i></button>
+          <button class="icon-button delete-button" onclick="deleteFile('${file.id}', this)"><i class="fa-solid fa-trash"></i></button>
+        </div>`;
+      fileList.appendChild(fileItem);
+    }
+
+    function downloadFile(url) {
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = url.split('/').pop();
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+
+    function deleteFile(fileId, button) {
+      showSpinner();
+      var fileItem = button.parentNode.parentNode;
+      fileItem.classList.add('removing');
+      setTimeout(function() {
+        fileItem.classList.add('shrinking');
+        setTimeout(function() {
+          fetch(DELETE_WEBHOOK_URL, {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({fileId: fileId})
+          })
+          .then(response => response.json())
+          .then(response => {
+            console.log(response);
+            fileItem.parentNode.removeChild(fileItem);
+            fileUploaded = false;
+            enableUploadButton();
+            hideSpinner();
+          })
+          .catch(error => {
+            console.error('Error:', error);
+            hideSpinner();
+          });
+        }, 500); // Delay for the shrinking transition
+      }, 500); // Delay for the opacity transition
+    }
+
+    function listFiles() {
+      var studentEmail = document.getElementById('studentEmail').value;
+      if (!studentEmail) {
+        alert('Please enter student email');
+        return;
+      }
+      var folderName = studentEmail;
+      showSpinner();
+      fetch(UPLOAD_WEBHOOK_URL + '?studentEmail=' + encodeURIComponent(studentEmail), {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      })
+      .then(response => response.json())
+      .then(files => {
+        var fileList = document.getElementById('fileList');
+        fileList.innerHTML = '';
+        files.forEach(file => addFileToList(file));
+        fileUploaded = files.length > 0; // Check if there are already uploaded files
+        if (fileUploaded) {
+          disableUploadButton();
+        }
+        hideSpinner();
+      })
+      .catch(error => {
+        console.error('Error:', error);
+        hideSpinner();
+      });
+    }
+
+    document.getElementById('studentEmail').addEventListener('change', listFiles);
+    window.onload = customizeButton;
+  </script>
+</body>
+</html>
