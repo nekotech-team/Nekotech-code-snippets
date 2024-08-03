@@ -125,6 +125,9 @@
     <label for="courseFolder">Course Folder:</label>
     <input type="text" id="courseFolder" name="courseFolder" required>
     <br><br>
+    <label for="lesson">Lesson:</label>
+    <input type="text" id="lesson" name="lesson" required>
+    <br><br>
     <input type="file" id="file" name="file" accept="application/pdf" style="display: none;" onchange="handleFileChange()">
     <button type="button" id="uploadButton" class="upload-button" onclick="document.getElementById('file').click()">
       <span class="text">Upload</span>
@@ -181,11 +184,12 @@
     function uploadFileToDrive() {
       var studentEmail = document.getElementById('studentEmail').value;
       var courseFolder = document.getElementById('courseFolder').value;
+      var lesson = document.getElementById('lesson').value;
       var fileInput = document.getElementById('file');
       var file = fileInput.files[0];
 
-      if (!studentEmail || !courseFolder || !file) {
-        alert('Please provide student email, course folder, and a file.');
+      if (!studentEmail || !courseFolder || !lesson || !file) {
+        alert('Please provide student email, course folder, lesson, and a file.');
         enableUploadButton();
         fileInput.value = ''; // Reset the file input
         return;
@@ -217,7 +221,8 @@
             fileBase64: base64Data,
             mimeType: mimeType,
             fileName: fileName,
-            courseFolder: courseFolder
+            courseFolder: courseFolder,
+            lesson: lesson
           }),
         })
         .then(response => response.json())
