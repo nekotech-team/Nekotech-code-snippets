@@ -122,6 +122,9 @@
     <label for="studentEmail">Student Email:</label>
     <input type="email" id="studentEmail" name="studentEmail" required>
     <br><br>
+    <label for="courseFolder">Course Folder:</label>
+    <input type="text" id="courseFolder" name="courseFolder" required>
+    <br><br>
     <input type="file" id="file" name="file" accept="application/pdf" style="display: none;" onchange="handleFileChange()">
     <button type="button" id="uploadButton" class="upload-button" onclick="document.getElementById('file').click()">
       <span class="text">Upload</span>
@@ -132,8 +135,8 @@
   <script>
     const MAX_FILE_SIZE = 100 * 1024 * 1024; // 100 MB
     let fileUploaded = false;
-    const UPLOAD_WEBHOOK_URL = 'https://hooks.zapier.com/hooks/catch/10065216/2uniy5x/'; // Replace with your Zapier webhook URL
-    const DELETE_WEBHOOK_URL = 'YOUR_DELETE_WEBHOOK_URL'; // Replace with your Zapier webhook URL
+    const UPLOAD_WEBHOOK_URL = 'https://your-anvil-app-url/_/api/uploadFile';
+    const DELETE_WEBHOOK_URL = 'YOUR_DELETE_WEBHOOK_URL'; // Replace with your Anvil endpoint URL
 
     function getQueryParameter(name) {
       const urlParams = new URLSearchParams(window.location.search);
@@ -177,11 +180,12 @@
 
     function uploadFileToDrive() {
       var studentEmail = document.getElementById('studentEmail').value;
+      var courseFolder = document.getElementById('courseFolder').value;
       var fileInput = document.getElementById('file');
       var file = fileInput.files[0];
 
-      if (!studentEmail || !file) {
-        alert('Please provide both student email and a file.');
+      if (!studentEmail || !courseFolder || !file) {
+        alert('Please provide student email, course folder, and a file.');
         enableUploadButton();
         fileInput.value = ''; // Reset the file input
         return;
@@ -200,11 +204,9 @@
         var mimeType = file.type;
         var fileName = file.name;
 
-        console.log(base64Data)
-        console.log(mimeType)
-        console.log(fileName)
-
         showSpinner();
+        
+        // The fetch request sends the file data to the Anvil endpoint
         fetch(UPLOAD_WEBHOOK_URL, {
           method: 'POST',
           headers: {
@@ -214,7 +216,8 @@
             studentEmail: studentEmail,
             fileBase64: base64Data,
             mimeType: mimeType,
-            fileName: fileName
+            fileName: fileName,
+            courseFolder: courseFolder
           }),
         })
         .then(response => response.json())
