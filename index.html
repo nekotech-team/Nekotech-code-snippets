@@ -200,6 +200,10 @@
         var mimeType = file.type;
         var fileName = file.name;
 
+        onsole.log(base64Data)
+        console.log(mimeType)
+        console.log(fileName)
+
         showSpinner();
         fetch(UPLOAD_WEBHOOK_URL, {
           method: 'POST',
