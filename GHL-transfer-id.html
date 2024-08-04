@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Change url in the buttons and send userid to the next site</title>
+  <script>
+    let userId;
+
+    async function fetchDateTime(GHLid) {
+      try {
+        const response = await fetch(`https://nekotech-backend.anvil.app/_/api/checkTimeRemainingForUser?GHLid=${encodeURIComponent(GHLid)}`);
+        const data = await response.json();
+        return data;
+      } catch (error) {
+        console.error('Error fetching date and time:', error);
+        return null;
+      }
+    }
+
+    function getQueryParams() {
+      let params = {};
+      let queryString = window.location.search.substring(1);
+      let queryArray = queryString.split("&");
+      for (let i = 0; i < queryArray.length; i++) {
+        let pair = queryArray[i].split("=");
+        params[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1]);
+      }
+      return params;
+    }
+
+    async function waitForUserId() {
+      let params;
+      let GHLid;
+      // Loop until we get the userid parameter
+      while (!GHLid) {
+        params = getQueryParams();
+        GHLid = params['userid'];
+        if (!GHLid) {
+          console.log("Waiting for GHL ID...");
+          await new Promise(resolve => setTimeout(resolve, 500)); // Wait for 500ms before checking again
+        }
+      }
+      return GHLid;
+    }
+
+    async function initializePage() {
+      userId = await waitForUserId();
+      
+      if (userId) {
+        updateButtonUrls();
+        const dateTimeData = await fetchDateTime(userId);
+        if (dateTimeData) {
+          console.log("Fetched date and time:", dateTimeData);
+        } else {
+          console.error("Failed to fetch or parse date and time data.");
+        }
+      } else {
+        console.error("User ID is not available.");
+      }
+    }
+
+    function updateButtonUrls() {
+      if (userId) {
+        console.log("User ID:", userId);
+
+        // Update the button URLs dynamically
+        let buttons = document.querySelectorAll('a[href="https://nekotech.ai/pay-later-primary"], a[href="https://nekotech.ai/pay-now-primary"], a[href="https://nekotech.ai/pay-later-secondary"]');
+        console.log(`Found ${buttons.length} buttons to update.`); // Log the number of buttons found
+        buttons.forEach(button => {
+          let currentUrl = button.getAttribute('href');
+          let newUrl = `${currentUrl}?userid=${userId}`;
+          console.log(`Updating button URL from ${currentUrl} to ${newUrl}`);
+          button.setAttribute('href', newUrl);
+        });
+
+      } else {
+        console.error("User ID is not available.");
+      }
+    }
+
+    window.onload = function() {
+      initializePage();
+    };
+  </script>
+</head>
+<body>
+</body>
+</html>
