@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <title>Countdown Timer</title>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Montserrat:wght@400;700&display=swap');
+    body {
+      font-family: 'Montserrat', sans-serif;
+    }
+    #time {
+      font-size: 2em;
+      color: white;   /* Change text color to white */
+    }
+    .hidden {
+      display: none;
+    }
+  </style>
+  <script>
+    async function fetchRemainingTime(GHLid) {
+      try {
+        const response = await fetch(`https://nekotech-backend.anvil.app/_/api/checkTimeRemainingForUser?GHLid=${encodeURIComponent(GHLid)}`);
+        console.log(encodeURIComponent(GHLid));
+        const data = await response.json();
+        return data.timeRemainingMs;
+      } catch (error) {
+        console.error('Error fetching remaining time:', error);
+        return null;
+      }
+    }
+
+    function getQueryParams() {
+      let params = {};
+      let queryString = window.location.search.substring(1);
+      let queryArray = queryString.split("&");
+      for (let i = 0; i < queryArray.length; i++) {
+        let pair = queryArray[i].split("=");
+        params[decodeURIComponent(pair[0])] = decodeURIComponent(pair[1]);
+      }
+      return params;
+    }
+
+    async function waitForUserId() {
+      let params;
+      let GHLid;
+      // Loop until we get the userId parameter
+      while (!GHLid) {
+        params = getQueryParams();
+        GHLid = params['userId'];
+        if (!GHLid) {
+          console.log("Waiting for GHL ID...");
+          await new Promise(resolve => setTimeout(resolve, 50)); // Wait for 500ms before checking again
+        }
+      }
+      return GHLid;
+    }
+
+    function updateButtonVisibility(expired) {
+      const promoElements = document.querySelectorAll('.promo');
+      const noPromoElements = document.querySelectorAll('.no-promo');
+
+      promoElements.forEach(element => {
+        element.style.display = expired ? 'none' : 'block';
+      });
+
+      noPromoElements.forEach(element => {
+        element.style.display = expired ? 'block' : 'none';
+      });
+    }
+
+    function startTimer(remainingTime, display) {
+      var timerInterval = setInterval(function() {
+        if (remainingTime <= 0) {
+          clearInterval(timerInterval);
+          display.textContent = "EXPIRED";
+          updateButtonVisibility(true);
+          console.log("Timer expired, buttons updated.");
+          return;
+        }
+
+        var days = Math.floor(remainingTime / (1000 * 60 * 60 * 24));
+        var hours = Math.floor((remainingTime % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        var minutes = Math.floor((remainingTime % (1000 * 60 * 60)) / (1000 * 60));
+        var seconds = Math.floor((remainingTime % (1000 * 60)) / 1000);
+
+        display.textContent = days + "d " + hours + "h " + minutes + "m " + seconds + "s ";
+        remainingTime -= 1000;
+      }, 1000);
+    }
+
+    // Hide all buttons when the script loads
+    document.addEventListener("DOMContentLoaded", function() {
+      const promoElements = document.querySelectorAll('.promo');
+      const noPromoElements = document.querySelectorAll('.no-promo');
+
+      promoElements.forEach(element => element.style.display = 'none');
+      //noPromoElements.forEach(element => element.style.display = 'none');
+    });
+
+    window.onload = async function() {
+      const GHLid = await waitForUserId();
+      console.log("GHL ID found:", GHLid);
+
+      const display = document.querySelector('#time');
+      display.textContent = "Loading...";  // Set loading text
+
+      const timeRemainingMs = await fetchRemainingTime(GHLid);
+      if (timeRemainingMs !== null) {
+        startTimer(timeRemainingMs, display);
+        updateButtonVisibility(timeRemainingMs <= 0);
+      } else {
+        console.error("Failed to fetch or parse remaining time data.");
+        display.textContent = "Failed to load timer";  // Set error text
+      }
+    };
+  </script>
+</head>
+<body>
+  <span id="time">Loading...</span>
+</body>
+</html>
